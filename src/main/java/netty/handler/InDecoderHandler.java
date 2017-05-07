@@ -12,7 +12,7 @@ import java.util.List;
 /**
  * Created by xiaoke on 17-5-6.
  */
-public class DecoderHandler extends ByteToMessageDecoder {
+public class InDecoderHandler extends ByteToMessageDecoder {
     private int limit;
 
     private int curidx;
@@ -21,15 +21,12 @@ public class DecoderHandler extends ByteToMessageDecoder {
 
     @Override
     protected void decode(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf, List<Object> list) throws Exception {
-        //System.out.println("Readable bytes: " + byteBuf.readableBytes());
-        NioSocketChannel nioSocketChannel = (NioSocketChannel) channelHandlerContext.channel();
-        System.out.println("EventLoop: " + nioSocketChannel.eventLoop().getClass().hashCode());
-        //System.out.println(channelHandlerContext.channel().getClass().getName());
         if (buf == null) {
             if (byteBuf.readableBytes() < 4) {
                 return;
             }
             limit = byteBuf.readInt();
+            System.out.println(Thread.currentThread().getId() + "---new byte buffer size： " + limit);
             curidx = 0;
             buf = new byte[limit];
             System.out.println(Thread.currentThread().getId() + "---new byte buffer size： " + limit);
@@ -42,16 +39,10 @@ public class DecoderHandler extends ByteToMessageDecoder {
         if (curidx == limit) {
             byte[] values = buf;
             buf = null;
-            int type = ToByteUtil.byteArrayToInt(values, 0);
+            System.out.println(new String(values));
             Object msg = null;
             try {
-                if (type == 0) {
-                    Register register = new Register();
-                    register.setType(type);
-                    register.setActorId(ToByteUtil.byteArrayToInt(values, 4));
-                    register.setAddress(new String(values, 8, limit - 8));
-                    msg = register;
-                }
+                msg = ToByteUtil.bytesToMes(values);
             } catch (Exception e) {
 
             }

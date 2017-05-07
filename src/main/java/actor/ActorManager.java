@@ -10,9 +10,11 @@ public interface ActorManager {
 
      Configure getConf();
 
-     Actor getActor();
+     Actor newActor();
 
-     Actor getActor(int id);
+     Actor newActor(String id);
+
+     Actor getActor(String id);
 
      void removeActor(Actor actor);
 

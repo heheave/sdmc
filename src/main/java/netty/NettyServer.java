@@ -1,6 +1,5 @@
 package netty;
 
-import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -8,8 +7,7 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
-import netty.handler.DecoderHandler;
-import netty.handler.ShowHandler;
+import netty.handler.*;
 import org.apache.log4j.Logger;
 import v.Configure;
 import v.V;
@@ -18,7 +16,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.SynchronousQueue;
 
 /**
  * Created by xiaoke on 17-5-6.
@@ -31,7 +28,9 @@ public class NettyServer {
 
     private final EventLoopGroup workGroup;
 
-    private final List<ChannelHandler> handlers;
+    private final List<AbstractActorManagerUpHandler> upHandlers;
+
+    private final List<AbstractActorManagerDownHandler> downHandlers;
 
     private final Configure conf;
 
@@ -44,11 +43,16 @@ public class NettyServer {
         this.isMaster = isMaster;
         this.bossGroup = new NioEventLoopGroup();
         this.workGroup = new NioEventLoopGroup();
-        this.handlers = new LinkedList<ChannelHandler>();
+        this.upHandlers = new LinkedList<AbstractActorManagerUpHandler>();
+        this.downHandlers = new LinkedList<AbstractActorManagerDownHandler>();
     }
 
-    public synchronized void addHandler(ChannelHandler ch) {
-        handlers.add(ch);
+    public synchronized void addHandler(AbstractActorManagerUpHandler ch) {
+        upHandlers.add(ch);
+    }
+
+    public synchronized void addHandler(AbstractActorManagerDownHandler ch) {
+        downHandlers.add(ch);
     }
 
     public boolean isMaster() {
@@ -61,20 +65,24 @@ public class NettyServer {
         ServerBootstrap bootstrap = new ServerBootstrap();
         bootstrap.group(this.bossGroup, this.workGroup)
                 .channel(NioServerSocketChannel.class)
-                .option(ChannelOption.SO_BACKLOG, SO_BACKLOG);
-        bootstrap.childHandler(new ChannelInitializer<SocketChannel>() {
+                .option(ChannelOption.SO_BACKLOG, SO_BACKLOG)
+                .childHandler(new ChannelInitializer<SocketChannel>() {
             @Override
             protected void initChannel(SocketChannel socketChannel) throws Exception {
-                socketChannel.pipeline().addLast(new DecoderHandler());
+                socketChannel.pipeline().addLast(new InDecoderHandler());
                 socketChannel.pipeline().addLast(new ShowHandler());
-                for (ChannelHandler ch: handlers) {
-                    socketChannel.pipeline().addLast(ch);
+                for (AbstractActorManagerUpHandler ch: upHandlers) {
+                    socketChannel.pipeline().addLast(ch.getNew());
+                }
+                socketChannel.pipeline().addLast(new OutEncoderHandler());
+                for (AbstractActorManagerDownHandler ch: downHandlers) {
+                    socketChannel.pipeline().addLast(ch.getNew());
                 }
             }
         });
         ChannelFuture cf = null;
         boolean isBind = false;
-        int tryPort = port;
+        int tryPort = isMaster ? port : port + 1;
         do {
             address = new InetSocketAddress(tryPort);
             try {
