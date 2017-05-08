@@ -1,5 +1,6 @@
 package runner;
 
+import actor.ActorRef;
 import enums.ActorState;
 import org.apache.log4j.Logger;
 
@@ -15,7 +16,7 @@ public class Runner {
 
     public static final int DEFAULT_MAILBOX_COMPACITY = 100;
 
-    private final BlockingQueue<Message> mesMailBox;
+    private final BlockingQueue<Entry> mesMailBox;
 
     private final int mailBoxCompacity;
 
@@ -29,6 +30,15 @@ public class Runner {
 
     private volatile IActorRun run;
 
+    private static  class Entry{
+        final ActorRef af;
+        final Message msg;
+        public Entry(ActorRef af, Message msg) {
+            this.af = af;
+            this.msg = msg;
+        }
+    }
+
     public Runner(int mailBoxCompacity, boolean stopIfError, IActorRun run) {
         if (mailBoxCompacity <= 0) {
             mailBoxCompacity = DEFAULT_MAILBOX_COMPACITY;
@@ -38,7 +48,7 @@ public class Runner {
         this.alive = false;
         this.state = new AtomicInteger(0);
         this.run = run;
-        this.mesMailBox = new ArrayBlockingQueue<Message>(mailBoxCompacity);
+        this.mesMailBox = new ArrayBlockingQueue<Entry>(mailBoxCompacity);
         this.executor = Executors.newSingleThreadExecutor();
     }
 
@@ -63,25 +73,25 @@ public class Runner {
 
     }
 
-    public void mailIn(Message mes) {
-        mailIn(mes, true);
+    public void mailIn(ActorRef af, Message mes) {
+        mailIn(af, mes, true);
     }
 
-    public boolean mailIn(Message mes, boolean isWaitIfFull) {
+    public boolean mailIn(ActorRef af, Message mes, boolean isWaitIfFull) {
         if (!this.alive || this.state().equals(ActorState.STOPPED)) {
             throw new RuntimeException("Runner has been shutdown");
         }
 
         if (isWaitIfFull) {
             try {
-                this.mesMailBox.put(mes);
+                this.mesMailBox.put(new Entry(af, mes));
                 return true;
             } catch (InterruptedException e) {
                 e.printStackTrace();
                 return false;
             }
         } else {
-            return mesMailBox.offer(mes);
+            return mesMailBox.offer(new Entry(af, mes));
         }
     }
 
@@ -109,10 +119,10 @@ public class Runner {
                 public void run() {
                     while(alive) {
                         try {
-                            Message mes = mesMailBox.take();
-                            if (mes != null && run != null) {
+                            Entry entry = mesMailBox.take();
+                            if (entry != null && run != null) {
                                 try {
-                                    run.run(mes);
+                                    run.run(entry.af, entry.msg);
                                 } catch (Exception e) {
                                     log.error(e);
                                     if (stopIfError) {

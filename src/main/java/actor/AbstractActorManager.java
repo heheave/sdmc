@@ -3,17 +3,16 @@ package actor;
 import enums.ActorState;
 import enums.LauchMode;
 import netty.NettyServer;
-import netty.msg.MessageFactory;
 import org.apache.log4j.Logger;
 import runner.IActorRun;
 import runner.Message;
+import runner.MessageFactory;
 import runner.Runner;
 import v.Configure;
 import v.V;
 
 import java.net.InetSocketAddress;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Created by xiaoke on 17-5-6.
@@ -26,14 +25,11 @@ abstract public class AbstractActorManager implements ActorManager{
 
     protected final LauchMode mode;
 
-    protected ConcurrentHashMap<String, Actor> idToActors;
-
     protected NettyServer nettyServer;
 
     public AbstractActorManager(Configure conf, LauchMode mode) {
         this.conf = conf;
         this.mode = mode;
-        this.idToActors = new ConcurrentHashMap<String, Actor>();
         this.nettyServer = new NettyServer(conf, LauchMode.MASTER.equals(mode));
     }
 
@@ -57,20 +53,24 @@ abstract public class AbstractActorManager implements ActorManager{
         return this.conf;
     }
 
-    public void removeActor(Actor actor) {
-        String actorId = actor.id();
-        Actor oldId = idToActors.remove(actorId);
-        if (oldId != null) {
-            try {
-                actor.shutdown();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-    }
+//    public void removeActor(Actor actor) {
+//        String actorId = actor.id();
+//        Actor oldId = idToActors.remove(actorId);
+//        if (oldId != null) {
+//            try {
+//                actor.shutdown();
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//            }
+//        }
+//    }
 
-    public boolean checkLocal(Actor actor) {
-        return idToActors.containsKey(actor.id());
+//    public boolean checkLocal(Actor actor) {
+//        return idToActors.containsKey(actor.id());
+//    }
+
+    public boolean isMaster() {
+        return LauchMode.MASTER.equals(mode);
     }
 
     public String host(){
@@ -103,10 +103,6 @@ abstract public class AbstractActorManager implements ActorManager{
         int masterPort = conf.getIntOrElse(V.MASTER_SERVER_PORT, 9999);
         InetSocketAddress isa = masterHost == null ? new InetSocketAddress(masterPort) : new InetSocketAddress(masterHost, masterPort);
         return isa;
-    }
-
-    public String getLocalAddressStr() {
-        return host() + ":" + port();
     }
 
     abstract public void lauchMaster() throws Exception;
@@ -143,9 +139,9 @@ abstract public class AbstractActorManager implements ActorManager{
             return actorId;
         }
 
-        public void mainIn(Message mes) {
+        public void mainIn(ActorRef af, Message mes) {
             if (runner != null) {
-                runner.mailIn(mes);
+                runner.mailIn(af, mes);
             }
         }
 
@@ -174,8 +170,8 @@ abstract public class AbstractActorManager implements ActorManager{
 
         public void sendTo(Actor to, byte[] msg) throws Exception {
             if (to != null || msg != null) {
-                Message message = MessageFactory.getDataMessage(id(), to.id(), msg);
-                actorMaster.send(message);
+                Message message = MessageFactory.getDataMessage(this, to.id(), msg);
+                actorMaster.send(message, to.getAddress());
             } else {
                 throw new NullPointerException("Destination actor and message cannot be null");
             }

@@ -1,6 +1,7 @@
-package netty.msg;
+package runner;
 
-import runner.Message;
+
+import actor.Actor;
 
 /**
  * Created by xiaoke on 17-5-7.
@@ -13,22 +14,28 @@ public class MessageFactory {
      * Message code 3:query actor
      * Message code 4:data packet
      */
-    public static Message getRegisterSlaveMessage(String addr) {
+    public static Message getRegisterSlaveMessage(String host, int port) {
         Message message = new Message(0);
-        message.setContent(addr.getBytes());
+        message.setActorFromHost(host);
+        message.setActorFromPort(port);
+        String content = "REGISTER SLAVE";
+        message.setContent(content.getBytes());
         return message;
     }
 
-    public static Message getRegisterActorMessage(String fromId, String addr) {
+    public static Message getRegisterActorMessage(String fromId, String host, int port) {
         Message message = new Message(1);
         message.setActorFromId(fromId);
-        message.setContent(addr.getBytes());
+        message.setActorFromHost(host);
+        message.setActorFromPort(port);
+        String content = "REGISTER ACTOR";
+        message.setContent(content.getBytes());
         return message;
     }
 
     public static Message getHeartbeatMessage() {
         Message message = new Message(2);
-        String content = "QUERY ACTOR ADDRESS";
+        String content = "HEARTBEAT MESSAGE";
         message.setContent(content.getBytes());
         return message;
     }
@@ -41,20 +48,22 @@ public class MessageFactory {
         return message;
     }
 
-    public static Message getDataMessage(String actorFromId, String actorToId, byte[] data) {
+    public static Message getDataMessage(Actor fromActor, String actorToId, byte[] data) {
         Message message = new Message(4);
-        message.setActorFromId(actorFromId);
+        message.setActorFromId(fromActor.id());
+        message.setActorFromHost(fromActor.getAddress().getHostName());
+        message.setActorFromPort(fromActor.getAddress().getPort());
         message.setActorToId(actorToId);
         message.setContent(data);
         return message;
     }
 
-    public static Message getDataMessage(String actorFromId, String actorToId, String data) {
-        return getDataMessage(actorFromId, actorToId, data.getBytes());
+    public static Message getDataMessage(Actor fromActor, String actorToId, String data) {
+        return getDataMessage(fromActor, actorToId, data.getBytes());
     }
 
     public static Message getSucceedMessage() {
-        Message message = new Message(-1);
+        Message message = new Message(200);
         message.setContent("ACK".getBytes());
         return message;
     }

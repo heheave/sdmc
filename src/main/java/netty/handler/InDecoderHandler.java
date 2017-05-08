@@ -2,9 +2,7 @@ package netty.handler;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
-import netty.msg.Register;
 import util.ToByteUtil;
 
 import java.util.List;
@@ -26,10 +24,10 @@ public class InDecoderHandler extends ByteToMessageDecoder {
                 return;
             }
             limit = byteBuf.readInt();
-            System.out.println(Thread.currentThread().getId() + "---new byte buffer size： " + limit);
+            //System.out.println(Thread.currentThread().getId() + "---new byte buffer size： " + limit);
             curidx = 0;
             buf = new byte[limit];
-            System.out.println(Thread.currentThread().getId() + "---new byte buffer size： " + limit);
+            //System.out.println(Thread.currentThread().getId() + "---new byte buffer size： " + limit);
         }
 
         int readableBytes = byteBuf.readableBytes();
@@ -39,15 +37,19 @@ public class InDecoderHandler extends ByteToMessageDecoder {
         if (curidx == limit) {
             byte[] values = buf;
             buf = null;
-            System.out.println(new String(values));
             Object msg = null;
             try {
                 msg = ToByteUtil.bytesToMes(values);
             } catch (Exception e) {
 
             }
-            //String str = new String(values);
             list.add(msg);
         }
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        cause.printStackTrace();
+        ctx.close();
     }
 }

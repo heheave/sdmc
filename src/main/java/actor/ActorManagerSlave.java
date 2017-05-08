@@ -1,10 +1,11 @@
 package actor;
 
 import enums.LauchMode;
-import netty.msg.MessageFactory;
+import netty.handler.MessageHandler;
 import org.apache.log4j.Logger;
 import runner.IActorRun;
 import runner.Message;
+import runner.MessageFactory;
 import util.ToByteUtil;
 import v.Configure;
 
@@ -22,14 +23,11 @@ public class ActorManagerSlave extends AbstractActorManager{
 
     private static final Logger log = Logger.getLogger(ActorManagerMaster.class);
 
-    //private final Set<Address> addressSets;
-
-    private final ConcurrentHashMap<Integer, Address> idToAddress;
+    protected ConcurrentHashMap<String, Actor> idToActors;
 
     public ActorManagerSlave(Configure conf) {
         super(conf, LauchMode.SLAVE);
-        //addressSets = new HashSet<Address>();
-        idToAddress = new ConcurrentHashMap<Integer, Address>();
+        idToActors = new ConcurrentHashMap<String, Actor>();
     }
 
     public void lauchMaster() throws Exception {
@@ -38,17 +36,25 @@ public class ActorManagerSlave extends AbstractActorManager{
 
     public void lauchSlave() throws Exception {
         log.info("Slave is startup");
+        nettyServer.addHandler(new MessageHandler(this));
         registerSlave();
-        Actor actor = getActor("firster.actor");
+        final Actor actor = getActor("first.actor");
 //        actor.receiveFrom(new IActorRun() {
-//            public void run(Message mes) throws Exception {
-//                System.out.println("sdfasdfsadfsdafsdaf");
+//            public void run(ActorRef af, Message mes) throws Exception {
+//                System.out.println("Receive mes from: " + af.id());
 //                System.out.println(new String(mes.getContent()));
+//                actor.sendTo(af, "Hello I am the first actor from".getBytes());
 //            }
 //        });
 
-        Actor actor3 = newActor("thdsadfafird.actor");
-        actor3.sendTo(actor,"Hello I am the third actor from other machine".getBytes());
+        Actor actor3 = newActor("22222222222222222.actor");
+        actor3.receiveFrom(new IActorRun() {
+            public void run(ActorRef af, Message mes) throws Exception {
+                System.out.println("Receive mes from: " + af.id());
+                System.out.println(new String(mes.getContent()));
+            }
+        });
+        actor3.sendTo(actor, "Hello I am the third actor from other machine".getBytes());
     }
 
     private Message socketSendMessage(final Message mes, InetSocketAddress isa, boolean withReply) throws IOException{
@@ -63,7 +69,6 @@ public class ActorManagerSlave extends AbstractActorManager{
             if (withReply) {
                 DataInputStream dataInputStream = new DataInputStream(s.getInputStream());
                 int len = dataInputStream.readInt();
-                System.out.println("len is: " + len);
                 byte[] bytes = new byte[len];
                 dataInputStream.readFully(bytes, 0, len);
                 return ToByteUtil.bytesToMes(bytes);
@@ -84,11 +89,12 @@ public class ActorManagerSlave extends AbstractActorManager{
     public void actorReceive(Actor actor, Message mes) {
         if (actor.isLocal()) {
             ActorImpl ai = (ActorImpl) actor;
-            ai.mainIn(mes);
+            ActorRef actorRef = mes.getFromActor();
+            ai.mainIn(actorRef, mes);
         }
     }
 
-    public void send(Message mes) throws Exception{
+    public void send(Message mes, InetSocketAddress addr) throws Exception {
         if (mes == null) {
             throw new NullPointerException("Message cannot be null");
         }
@@ -97,13 +103,21 @@ public class ActorManagerSlave extends AbstractActorManager{
         if (actor != null) {
             actorReceive(actor, mes);
         } else {
-            Actor actorRemote = getActor(actorToId);
-            if (actorRemote != null && actorRemote.getAddress() != null) {
-                socketSendMessage(mes, actorRemote.getAddress(), false);
-            } else {
-                throw new IOException("Could not find actor: " + actorToId);
+            InetSocketAddress isa = addr;
+            if (isa == null) {
+                Actor actorRemote = getActor(actorToId);
+                if (actorRemote != null && actorRemote.getAddress() != null) {
+                   isa = actorRemote.getAddress();
+                } else {
+                    throw new IOException("Could not find actor: " + actorToId);
+                }
             }
+            socketSendMessage(mes, isa, false);
         }
+    }
+
+    public boolean checkLocal(Actor actor) {
+        return idToActors.contains(actor);
     }
 
     public Actor newActor() {
@@ -116,17 +130,17 @@ public class ActorManagerSlave extends AbstractActorManager{
                 break;
             }
         }
-        Message message = MessageFactory.getRegisterActorMessage(actor.id(), getLocalAddressStr());
+        Message message = MessageFactory.getRegisterActorMessage(actor.id(), host(), port());
         try {
             Message retMes = socketSendMessage(message, getMasterAddress(), true);
             if (retMes == null || retMes.getContent() == null) {
-                idToAddress.remove(actor.id());
+                idToActors.remove(actor.id());
                 throw new RuntimeException("Could not newActor: " + actor.id());
             } else {
                 return actor;
             }
         } catch (IOException e) {
-            idToAddress.remove(actor.id());
+            idToActors.remove(actor.id());
             e.printStackTrace();
             throw new RuntimeException(e);
         }
@@ -136,17 +150,17 @@ public class ActorManagerSlave extends AbstractActorManager{
         Actor actor = new ActorImpl(this, id);
         Actor old = idToActors.putIfAbsent(id, actor);
         if (old == null) {
-            Message message = MessageFactory.getRegisterActorMessage(id, getLocalAddressStr());
+            Message message = MessageFactory.getRegisterActorMessage(id, host(), port());
             try {
                 Message retMes = socketSendMessage(message, getMasterAddress(), true);
                 if (retMes == null || retMes.getContent() == null) {
-                    idToAddress.remove(actor);
+                    idToActors.remove(actor);
                     throw new RuntimeException("Could not newActor: " + id);
                 } else {
                     return actor;
                 }
             } catch (IOException e) {
-                idToAddress.remove(actor);
+                idToActors.remove(actor);
                 e.printStackTrace();
                 throw new RuntimeException(e);
             }
@@ -157,7 +171,7 @@ public class ActorManagerSlave extends AbstractActorManager{
 
     private void registerSlave() {
         try {
-            Message mes = MessageFactory.getRegisterSlaveMessage(getLocalAddressStr());
+            Message mes = MessageFactory.getRegisterSlaveMessage(host(), port());
             socketSendMessage(mes, getMasterAddress(), false);
         } catch (Exception e) {
             e.printStackTrace();
@@ -184,6 +198,17 @@ public class ActorManagerSlave extends AbstractActorManager{
                 e.printStackTrace();
             }
             return null;
+        }
+    }
+
+    public void removeActor(Actor actor) {
+        Actor oldActor = idToActors.remove(actor.id());
+        if (oldActor != null) {
+            try {
+                actor.shutdown();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 }

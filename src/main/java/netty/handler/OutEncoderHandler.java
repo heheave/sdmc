@@ -14,15 +14,18 @@ public class OutEncoderHandler extends MessageToByteEncoder{
 
     @Override
     protected void encode(ChannelHandlerContext channelHandlerContext, Object o, ByteBuf byteBuf) throws Exception {
-
         if (o instanceof Message) {
             Message msg = (Message)o;
             byteBuf.writeInt(msg.getMesLen());
-            System.out.println(msg.getMesLen());
             byteBuf.writeBytes(ToByteUtil.mesToBytes(msg));
-            System.out.println("xxxxxxxxxx  " + new String(ToByteUtil.mesToBytes(msg)) + "  xxxxxxxxxx");
         } else {
 
         }
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        cause.printStackTrace();
+        ctx.close();
     }
 }

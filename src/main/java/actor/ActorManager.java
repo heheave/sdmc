@@ -3,6 +3,8 @@ package actor;
 import runner.Message;
 import v.Configure;
 
+import java.net.InetSocketAddress;
+
 /**
  * Created by xiaoke on 17-5-6.
  */
@@ -22,9 +24,11 @@ public interface ActorManager {
 
      void stop() throws Exception;
 
-     void send(Message mes) throws Exception;
+     void send(Message mes, InetSocketAddress addr) throws Exception;
 
      boolean checkLocal(Actor actor);
+
+     boolean isMaster();
 
      String host();
 

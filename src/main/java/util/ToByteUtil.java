@@ -52,6 +52,15 @@ public class ToByteUtil {
                 System.arraycopy(mes.getActorFromId().getBytes(), 0, result, offset, fromIdLen);
                 offset += fromIdLen;
             }
+            int fromHostLen = mes.getActorFromHost() == null ? 0 : mes.getActorFromHost().length();
+            intToByteArray(result, offset, fromHostLen);
+            offset += 4;
+            if (fromHostLen != 0) {
+                System.arraycopy(mes.getActorFromHost().getBytes(), 0, result, offset, fromHostLen);
+                offset += fromHostLen;
+            }
+            intToByteArray(result, offset, mes.getActorFromPort());
+            offset += 4;
             int toIdLen = mes.getActorToId() == null ? 0 : mes.getActorToId().length();
             intToByteArray(result, offset, toIdLen);
             offset += 4;
@@ -87,6 +96,16 @@ public class ToByteUtil {
             String fromId = fromIdLen == 0 ? null : new String(bytes, offset, fromIdLen);
             offset += fromIdLen;
             message.setActorFromId(fromId);
+
+            int fromHostLen = byteArrayToInt(bytes, offset);
+            offset += 4;
+            String fromHost = fromHostLen == 0 ? null : new String(bytes, offset, fromHostLen);
+            offset += fromHostLen;
+            message.setActorFromHost(fromHost);
+
+            int fromPort = byteArrayToInt(bytes, offset);
+            offset += 4;
+            message.setActorFromPort(fromPort);
 
             int toIdLen = byteArrayToInt(bytes, offset);
             offset += 4;

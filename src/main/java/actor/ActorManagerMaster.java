@@ -1,23 +1,15 @@
 package actor;
 
-import enums.ActorState;
 import enums.LauchMode;
-import netty.handler.TestHandler1;
+import netty.handler.MessageHandler;
 import org.apache.log4j.Logger;
-import org.apache.log4j.net.SyslogAppender;
-import runner.IActorRun;
 import runner.Message;
-import runner.Runner;
 import v.Configure;
-import v.V;
 
-import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 
 /**
@@ -39,17 +31,19 @@ public class ActorManagerMaster extends AbstractActorManager{
 
     public void lauchMaster() throws Exception {
         log.info("Master is startup");
-        System.out.println(host() + " : " + port());
-        TestHandler1 th = new TestHandler1(this);
-        nettyServer.addHandler(th);
+        nettyServer.addHandler(new MessageHandler(this));
     }
 
     public void lauchSlave() throws Exception {
         throw new IllegalAccessException("Cannot invoke this method in Master mode");
     }
 
-    public void send(Message mes) throws Exception{
+    public void send(Message mes, InetSocketAddress addr) throws Exception{
         throw new IllegalAccessException("Cannot invoke this method in Master mode");
+    }
+
+    public boolean checkLocal(Actor actor) {
+        return false;
     }
 
     public void registerSlave(Address address) {
@@ -66,11 +60,8 @@ public class ActorManagerMaster extends AbstractActorManager{
 
     public boolean registerActor(String id, Address address) {
         registerSlave(address);
-        Address addr = addressSets.get(address);
-        Actor actor = new ActorRef(id, address.getIp(), address.getPort());
-        Actor oldActor = idToActors.putIfAbsent(id, actor);
-        if (oldActor == null) {
-            idToAddress.put(id, address);
+        Address oldAddr = idToAddress.putIfAbsent(id, address);
+        if (oldAddr == null) {
             return true;
         } else {
             return false;
@@ -78,7 +69,7 @@ public class ActorManagerMaster extends AbstractActorManager{
     }
 
     public Actor queryActor(String id) {
-        return  idToActors.get(id);
+        return getActor(id);
     }
 
     public Actor newActor() {
@@ -90,6 +81,15 @@ public class ActorManagerMaster extends AbstractActorManager{
     }
 
     public Actor getActor(String id) {
-        return idToActors.get(id);
+        Address addr = idToAddress.get(id);
+        if (addr == null) {
+            return null;
+        } else {
+            return new ActorRef(id, addr.getIp(), addr.getPort());
+        }
+    }
+
+    public void removeActor(Actor actor) {
+        idToAddress.remove(actor.id());
     }
 }
